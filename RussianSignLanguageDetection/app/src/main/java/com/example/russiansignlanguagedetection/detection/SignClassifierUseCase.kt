@@ -13,15 +13,17 @@ import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 
 typealias ClassifierResult = (results: List<Classifications>?) -> Unit
 
-class SignClassifier(
+class SignClassifierUseCase(
     private val context: Context,
     private val classifierResult: ClassifierResult?
 ) {
 
     companion object {
         private const val NUM_THREADS = 2
-        private const val MIN_PERCENT = 0.65f
+        private const val MIN_PERCENT = 0.7f
         private const val MAX_RESULT = 3
+
+        private const val IMAGE_SIZE = 224
 
         private const val MODEL_PATH = "model_sign_detection_metadata.tflite"
     }
@@ -34,19 +36,19 @@ class SignClassifier(
 
     private fun initSignClassifier() {
         val optionsBuilder = ImageClassifier.ImageClassifierOptions.builder()
-            .setScoreThreshold(MIN_PERCENT)
+            .setScoreThreshold(MIN_PERCENT) // 70%
             .setMaxResults(MAX_RESULT)
 
         val baseOptionsBuilder = BaseOptions.builder()
-            .setNumThreads(NUM_THREADS)
-            .useNnapi()
+            .setNumThreads(NUM_THREADS) // 2 thread
+            .useNnapi() // NNApi
 
         optionsBuilder.setBaseOptions(baseOptionsBuilder.build())
 
         runCatching {
             gestureClassifier = ImageClassifier.createFromFileAndOptions(
                 context,
-                MODEL_PATH,
+                MODEL_PATH, // neural network path (from assets/)
                 optionsBuilder.build()
             )
         }
@@ -56,7 +58,7 @@ class SignClassifier(
         gestureClassifier?.let { classifier ->
             val imageProcessor = ImageProcessor.Builder()
                 .add(Rot90Op(imageRotation / 90))
-                .add(ResizeOp(224, 224, ResizeOp.ResizeMethod.NEAREST_NEIGHBOR))
+                .add(ResizeOp(IMAGE_SIZE, IMAGE_SIZE, ResizeOp.ResizeMethod.NEAREST_NEIGHBOR))
                 .build()
 
             val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))

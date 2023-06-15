@@ -6,7 +6,7 @@ import android.graphics.Matrix
 import androidx.camera.core.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.russiansignlanguagedetection.detection.SignClassifier
+import com.example.russiansignlanguagedetection.detection.SignClassifierUseCase
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +23,7 @@ class SignDetectionViewModel(application: Application) : AndroidViewModel(applic
         private const val SAVE_LETTER_MILLIS = 2000L
     }
 
-    private var signClassifier: SignClassifier? = null
+    private var signClassifierUseCase: SignClassifierUseCase? = null
     private var bitmapBuffer: Bitmap? = null
     private var cameraExecutor: ExecutorService? = null
 
@@ -37,8 +37,10 @@ class SignDetectionViewModel(application: Application) : AndroidViewModel(applic
     private val _score = MutableStateFlow<Float?>(null)
     val score: StateFlow<Float?> = _score
 
+    private val imageBuilder = ImageBuilder()
+
     init {
-        signClassifier = SignClassifier(
+        signClassifierUseCase = SignClassifierUseCase(
             context = getApplication(),
             classifierResult = (::handleResult)
         )
@@ -50,33 +52,20 @@ class SignDetectionViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun buildPreview(rotation: Int): Preview =
-        Preview.Builder()
-            .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-            .setTargetRotation(rotation)
-            .build()
+        imageBuilder.buildPreview(rotation)
 
     fun buildImageAnalyzer(rotation: Int): UseCase =
-        ImageAnalysis.Builder()
-            .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-            .setTargetRotation(rotation)
-            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-            .build()
-            .also { imageAnalysis ->
-                cameraExecutor?.let { executor ->
-                    imageAnalysis.setAnalyzer(executor) { image ->
-                        if (bitmapBuffer == null) {
-                            bitmapBuffer = Bitmap.createBitmap(
-                                image.width,
-                                image.height,
-                                Bitmap.Config.ARGB_8888
-                            )
-                        }
-
-                        classifyImage(image)
-                    }
-                }
+        imageBuilder.buildImageAnalyzer(rotation, cameraExecutor) { image ->
+            if (bitmapBuffer == null) {
+                bitmapBuffer = Bitmap.createBitmap(
+                    image.width,
+                    image.height,
+                    Bitmap.Config.ARGB_8888
+                )
             }
+
+            classifyImage(image)
+        }
 
     private fun classifyImage(image: ImageProxy) {
         image.use {
@@ -103,7 +92,7 @@ class SignDetectionViewModel(application: Application) : AndroidViewModel(applic
                 true
             )
 
-            signClassifier?.classify(
+            signClassifierUseCase?.classify(
                 image = flippedBitmap,
                 imageRotation = 180 - image.imageInfo.rotationDegrees
             )
